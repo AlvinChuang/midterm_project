@@ -35,8 +35,8 @@ Serial pc(USBTX, USBRX);
 int16_t waveform[kAudioTxBufferSize];
 
 float signal0[signalLength];
-//int song[42];
-//int noteLength[42];
+int song[42];
+int noteLength[42];
 char serialInBuffer[bufferLength];
 int serialCount = 0;
 
@@ -44,6 +44,13 @@ EventQueue queue(32 * EVENTS_EVENT_SIZE);
 Thread t;
 int idC = 0;
 
+bool exitModeSelection = false;
+int whichSong = 0;
+int whichMode = 0;
+bool stopSong = false;
+int songIndex = 0;
+
+/*
 int song[42] = {
   261, 261, 392, 392, 440, 440, 392,
   349, 349, 330, 330, 294, 294, 261,
@@ -59,7 +66,7 @@ int noteLength[42] = {
   1, 1, 1, 1, 1, 1, 2,
   1, 1, 1, 1, 1, 1, 2,
   1, 1, 1, 1, 1, 1, 2};
-
+*/
 ///////////////////////////////////////////////////////////////
   // Create an area of memory to use for input, output, and intermediate arrays.
   // The size of this will depend on the model you're using, and may need to be
@@ -134,6 +141,60 @@ void sw2Fall (bool &stopSong)
   }
 }
 */
+
+void sw2Fall ()
+{
+  stopSong = true;
+  green_led = !green_led;
+}
+
+void loadingSong(int whichLoading)
+{
+  switch (whichLoading)
+  {
+  case 0:
+    uLCD.background_color(BLACK);
+    uLCD.cls();
+    uLCD.printf("\nLoading...SongA\n"); //Default Green on black text
+    break;
+  case 1:
+    uLCD.background_color(BLACK);
+    uLCD.cls();
+    uLCD.printf("\nLoading...SongB\n"); //Default Green on black text
+    break;
+  case 2:
+    uLCD.background_color(BLACK);
+    uLCD.cls();
+    uLCD.printf("\nLoading...SongC\n"); //Default Green on black text
+    break;
+  default:
+    break;
+  }
+}
+
+void playingSong(int whichPlaying)
+{
+  switch (whichPlaying)
+  {
+  case 0:
+    uLCD.background_color(BLACK);
+    uLCD.cls();
+    uLCD.printf("\nPlaying...SongA\n"); //Default Green on black text
+    break;
+  case 1:
+    uLCD.background_color(BLACK);
+    uLCD.cls();
+    uLCD.printf("\nPlaying...SongB\n"); //Default Green on black text
+    break;
+  case 2:
+    uLCD.background_color(BLACK);
+    uLCD.cls();
+    uLCD.printf("\nPlaying...SongC\n"); //Default Green on black text
+    break;
+  default:
+    break;
+  }
+}
 
 void showSong(int whichSong)
 {
@@ -257,44 +318,51 @@ int PredictGesture(float* output) {
 
 void loadSignal(int whichSongtoLoad)
 {
-    switch (whichSongtoLoad)
+  switch (whichSongtoLoad)
+  {
+  case 0:
+    printf("SongA\n");
+    break;
+  case 1:
+    printf("SongB\n");
+    break;
+  case 2:
+    printf("SongC\n");
+    break;
+  default:
+    break;
+  }
+  
+  green_led = 0;
+  int i = 0;
+  serialCount = 0;
+  audio.spk.pause();
+  while(i < signalLength)
+  {
+    if(pc.readable())
     {
-    case 1:
-        printf("SongA\n");
-        break;
-    default:
-        break;
+      serialInBuffer[serialCount] = pc.getc();
+      serialCount++;
+      if(serialCount == 5)
+      {
+        serialInBuffer[serialCount] = '\0';
+        signal0[i] = (float) atof(serialInBuffer);
+        serialCount = 0;
+        i++;
+      }
     }
-    
-    green_led = 0;
-    int i = 0;
-    serialCount = 0;
-    audio.spk.pause();
-    while(i < signalLength)
-    {
-        if(pc.readable())
-        {
-          serialInBuffer[serialCount] = pc.getc();
-          serialCount++;
-          if(serialCount == 5)
-          {
-            serialInBuffer[serialCount] = '\0';
-            signal0[i] = (float) atof(serialInBuffer);
-            serialCount = 0;
-            i++;
-          }
-        }
-    }
-    for (int j = 0; j < 42; j++)
-    {
-        song[j] = (int) (signal0[j] * 1000);
-    }
-    for (int k = 42; k < 84; k++)
-    {
-        noteLength[k-42] = (int) (signal0[k] * 10);
-    }
-    green_led = 1;
+  }
+  for (int j = 0; j < 42; j++)
+  {
+    song[j] = (int) (signal0[j] * 1000);
+  }
+  for (int k = 42; k < 84; k++)
+  {
+    noteLength[k-42] = (int) (signal0[k] * 10);
+  }
+  green_led = 1;
 }
+
 
 void playNote(int freq)
 {
@@ -302,19 +370,7 @@ void playNote(int freq)
   {
     waveform[i] = (int16_t) (sin((double)i * 2. * M_PI/(double) (kAudioSampleFrequency / freq)) * ((1<<16) - 1));
   }
-  //audio.spk.play(waveform, kAudioTxBufferSize);
-  // the loop below will play the note for the duration of 1s
-  /*for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
-  {
-    audio.spk.play(waveform, kAudioTxBufferSize);
-  }*/
-
-  
-  // the loop below will play the note for the duration of 1s
-  for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
-  {
-    audio.spk.play(waveform, kAudioTxBufferSize);
-  }
+  audio.spk.play(waveform, kAudioTxBufferSize);
 }
 
 
@@ -323,7 +379,9 @@ void playSong(int songIndex, bool &stopSong)
   switch (songIndex)
   {
   case 0:
-    
+    loadingSong(abs(songIndex)%3);
+    loadSignal(abs(songIndex)%3);
+    playingSong(abs(songIndex)%3);
     for (int i = 0; (i < 42) && (!stopSong); i++) {
       int length = noteLength[i];
       while(length--)
@@ -331,40 +389,69 @@ void playSong(int songIndex, bool &stopSong)
         // the loop below will play the note for the duration of 1s
         for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
         {
-          playNote(song[i]);
-          //queue.call(playNote,song[i]);
-          //wait(1000);
+          queue.call(playNote,song[i]);
         }
-        //if(length < 1) wait(1.0);
+        if(length < 1) wait(1.0);
       }
       //sw2Fall(stopSong);
+      sw2.fall(sw2Fall);
     }
-    //audio.spk.pause();
-    //audio.spk.play();
+    audio.spk.pause();
+    break;
+  case 1:
+    loadingSong(abs(songIndex)%3);
+    loadSignal(abs(songIndex)%3);
+    playingSong(abs(songIndex)%3);
+    for (int i = 0; (i < 42) && (!stopSong); i++) {
+      int length = noteLength[i];
+      while(length--)
+      {
+        // the loop below will play the note for the duration of 1s
+        for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
+        {
+          queue.call(playNote,song[i]);
+        }
+        if(length < 1) wait(1.0);
+      }
+      //sw2Fall(stopSong);
+      sw2.fall(sw2Fall);
+    }
+    audio.spk.pause();
+    break;
+  case 2:
+    loadingSong(abs(songIndex)%3);
+    loadSignal(abs(songIndex)%3);
+    playingSong(abs(songIndex)%3);
+    for (int i = 0; (i < 42) && (!stopSong); i++) {
+      int length = noteLength[i];
+      while(length--)
+      {
+        // the loop below will play the note for the duration of 1s
+        for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
+        {
+          queue.call(playNote,song[i]);
+        }
+        if(length < 1) wait(1.0);
+      }
+      //sw2Fall(stopSong);
+      sw2.fall(sw2Fall);
+    }
+    audio.spk.pause();
     break;
   default:
     break;
   }
 }
 
-void toggleLED(void)
-{
-  green_led = !green_led;
-  printf("helloworld\r\n");
-  wait(1000);
-}
-
 
 int main(int argc, char* argv[]) {
 
-  bool exitModeSelection = false;
-  int whichSong = 0;
-  int whichMode = 0;
-  bool stopSong = false;
-  int songIndex = 0;
+
 
   t.start(callback(&queue, &EventQueue::dispatch_forever));
   //sw2.fall(queue.event(&toggleLED));
+
+  green_led = 1;
 
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     error_reporter->Report(
@@ -416,8 +503,8 @@ int main(int argc, char* argv[]) {
     uLCD.cls();
 
     showMode(abs(whichMode)%3);
-
-
+    
+    green_led = 1;
 
     while (!exitModeSelection) {
       sw3Fall(exitModeSelection); 
@@ -462,33 +549,7 @@ int main(int argc, char* argv[]) {
       stopSong = false;
       songIndex++;
       stopSong = false;
-      //audio.spk.pause();
-      //playSong(abs(songIndex)%3, stopSong);
-      /*
-      for(int i = 0; i < 42; i++)
-      {
-        int length = noteLength[i];
-        while(length--)
-        {
-          // the loop below will play the note for the duration of 1s
-          for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
-          {
-            queue.call(playNote, song[i]);
-          }
-          if(length < 1) wait(1.0);
-        }
-      }
-      */
-      //t.terminate();
-      for(int i = 0; i < 42; i++)
-      {
-        int length = noteLength[i];
-        while(length--)
-        {
-          queue.call(playNote, song[i]);
-          if(length <= 1) wait(1.0);
-        }
-      }
+      playSong(abs(songIndex)%3, stopSong);      
       
     } else if ((abs(whichMode)%3) == 1) { // Previous Song
       stopSong = false;
@@ -539,8 +600,7 @@ int main(int argc, char* argv[]) {
       } // exit Song selection when exitModeSelection=false
       songIndex = abs(whichSong)%3;
       stopSong = false;
-
-      //playSong(abs(songIndex)%3, stopSong);
+      playSong(abs(songIndex)%3, stopSong);
       // stop play song when stopSong = true
 
     }
